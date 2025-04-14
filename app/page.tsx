@@ -1,9 +1,30 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Shield, Lock, Share2, Upload, CheckCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+    Shield,
+    Lock,
+    Share2,
+    Upload,
+    CheckCircle,
+    User,
+    Moon,
+} from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-export default function LandingPage() {
+import { Button } from "@/components/ui/button";
+import { getServerSession } from "next-auth";
+import LogoutButton from "@/components/logoutButton";
+import ThemeToggle from "@/components/themeToggle";
+
+export default async function LandingPage() {
+    const serverSession = await getServerSession();
     return (
         <div className="flex flex-col min-h-screen">
             <header className="border-b">
@@ -32,12 +53,71 @@ export default function LandingPage() {
                             Security
                         </Link>
                     </nav>
-                    <div className="flex items-center gap-4">
-                        <Link href="/transfer">
-                            <Button className="text-md py-5">
-                                Start Sharing
-                            </Button>
-                        </Link>
+                    <div className="flex items-center gap-5">
+                        <ThemeToggle />
+                        {serverSession?.user ? (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <div
+                                        className={`bg-muted rounded-full overflow-hidden h-10 w-10 flex items-center justify-center ${
+                                            serverSession.user.image
+                                                ? "border-0"
+                                                : "border-[1px] border-zinc-500 cursor-pointer"
+                                        }`}
+                                    >
+                                        {serverSession.user.image ? (
+                                            <Image
+                                                src={serverSession.user.image}
+                                                alt="user"
+                                                width={40}
+                                                height={40}
+                                            />
+                                        ) : (
+                                            <User />
+                                        )}
+                                    </div>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    <DropdownMenuLabel>
+                                        {`Hi, ${
+                                            serverSession.user.name?.split(
+                                                " "
+                                            )[0]
+                                        }`}
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <Link href={"/profile"}>
+                                        <DropdownMenuItem className="h-8 font-bold text-zinc-700 dark:text-zinc-100 bg-muted mb-1 cursor-pointer">
+                                            Profile
+                                        </DropdownMenuItem>
+                                    </Link>
+                                    <Link href={"/transfer"}>
+                                        <DropdownMenuItem className="h-8 font-bold text-zinc-700 dark:text-zinc-100 bg-muted mb-1 cursor-pointer">
+                                            Transfer
+                                        </DropdownMenuItem>
+                                    </Link>
+                                    <DropdownMenuItem className="p-0 font-bold bg-muted">
+                                        <LogoutButton />
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            <div className="flex items-center gap-4">
+                                <Link href="/signup">
+                                    <Button className="text-md py-5 cursor-pointer">
+                                        Signup
+                                    </Button>
+                                </Link>
+                                <Link href="/login">
+                                    <Button
+                                        className="text-md py-5 cursor-pointer"
+                                        variant={"outline"}
+                                    >
+                                        Login
+                                    </Button>
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
@@ -75,12 +155,12 @@ export default function LandingPage() {
                                     </Link>
                                 </div>
                             </div>
-                            <div className="relative h-[350px] w-full overflow-hidden rounded-xl">
+                            <div className="relative hidden md:block h-[350px] w-full mx-auto overflow-hidden rounded-xl">
                                 <Image
-                                    src="/hero-bg.png"
+                                    src="/hero.jpg"
                                     alt="Secure file sharing"
                                     fill
-                                    className="object-cover"
+                                    className="object-cover dark:opacity-80"
                                     priority
                                 />
                             </div>
@@ -249,7 +329,7 @@ export default function LandingPage() {
                                     </li>
                                 </ul>
                             </div>
-                            <div className="relative h-[350px] w-full overflow-hidden rounded-xl">
+                            <div className="relative h-[250px] md:h[350px] w-full overflow-hidden rounded-xl dark:border dark:border-slate-700">
                                 <Image
                                     src="/aes256.png"
                                     alt="Security illustration"
