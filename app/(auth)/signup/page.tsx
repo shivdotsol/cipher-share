@@ -17,6 +17,15 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { signIn } from "next-auth/react";
 import { PrismaClient } from "@prisma/client";
@@ -38,6 +47,8 @@ export default function SignupPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isOtpDialogOpen, setIsOtpDialogOpen] = useState(false);
+    const [enteredOTP, setEnteredOTP] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const { resolvedTheme } = useTheme();
     const loaderColor = resolvedTheme === "light" ? "#ffffff" : "#000000";
@@ -48,48 +59,85 @@ export default function SignupPage() {
         picture: string;
     }
 
-    const handleSignup = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSubmitting(true);
-
-        // covers ~97% of all TLDs
+    const isInputValid = () => {
         const emailRegex =
             /^[a-zA-Z0-9._%+-]+[a-zA-Z0-9%+-]@[a-zA-Z0-9-]+\.(?:com|org|ru|net|de|uk|cn|jp|fr|in|br|it|nl|au|ca|co|es|pl|info|xyz|edu|gov|ai|io|eu|kr|se|ch|mx|be|biz|dk|no|cz|at|tr|us|id|sk|fi|tw|cl|ar|nz|hu|ie|pt|ro|sg|online)$/i;
         if (!emailRegex.test(email)) {
             setError("Invalid email format.");
+            return false;
         } else if (password.length < 8) {
             setError("Password must be atleast 8 characters.");
+            return false;
         } else {
-            try {
-                const res = await axios.post("/api/auth/register", {
+            return true;
+        }
+    };
+
+    const sendEmail = async () => {
+        try {
+            const res = await axios.post("/api/auth/send-otp", {
+                email,
+                firstName: name.split(" ")[0],
+            });
+        } catch {
+            setError("Error while sending email");
+            setIsOtpDialogOpen(false);
+        }
+    };
+    const verifyEmail = async () => {
+        try {
+            const res = await axios.post("/api/auth/verify-otp", {
+                email,
+                otp: enteredOTP,
+            });
+            if (res.status === 200) {
+                setIsOtpDialogOpen(false);
+                handleSignup();
+            }
+        } catch {
+            setError("Incorrect OTP");
+        }
+    };
+
+    const onSignup = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isInputValid()) {
+            sendEmail();
+            setIsOtpDialogOpen(true);
+        }
+    };
+
+    const handleSignup = async () => {
+        setIsSubmitting(true);
+        try {
+            const res = await axios.post("/api/auth/register", {
+                name,
+                email,
+                password,
+                authType: "EMAIL",
+                publicKey: "dkchjblshdcgyevcoyuterfckvclche", // implement keyPair management
+            });
+            if (res.status == 200) {
+                const signUpResponse = await signIn("credentials", {
                     name,
                     email,
                     password,
                     authType: "EMAIL",
-                    publicKey: "dkchjblshdcgyevcoyuterfckvclche", // implement keyPair management
+                    redirect: false,
+                    callbackUrl: "/",
                 });
-                if (res.status == 200) {
-                    const signUpResponse = await signIn("credentials", {
-                        name,
-                        email,
-                        password,
-                        authType: "EMAIL",
-                        redirect: false,
-                        callbackUrl: "/",
-                    });
-                    router.push("/");
-                }
-            } catch (e) {
-                if (isAxiosError(e)) {
-                    const err = e as AxiosError;
-                    setError(
-                        err.status == 409
-                            ? "Email already in use."
-                            : "Internal Server Error"
-                    );
-                } else {
-                    setError("Unknown error occurred.");
-                }
+                router.push("/");
+            }
+        } catch (e) {
+            if (isAxiosError(e)) {
+                const err = e as AxiosError;
+                setError(
+                    err.status == 409
+                        ? "Email already in use."
+                        : "Internal Server Error"
+                );
+            } else {
+                setError("Unknown error occurred.");
             }
         }
 
@@ -159,6 +207,31 @@ export default function SignupPage() {
                     },
                 }}
             />
+            <Dialog open={isOtpDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Email OTP Verification</DialogTitle>
+                        <DialogDescription>
+                            An OTP has been sent on the given email, enter it
+                            below to verify your email.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Input
+                        id="name"
+                        value={enteredOTP}
+                        onChange={(e) => setEnteredOTP(e.target.value)}
+                    />
+                    <DialogFooter>
+                        <Button
+                            onClick={() => setIsOtpDialogOpen(false)}
+                            variant={"outline"}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={verifyEmail}>Verify</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <header className="border-b bg-white dark:bg-background">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
                     <Link href="/" className="flex items-center gap-2">
@@ -178,7 +251,7 @@ export default function SignupPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSignup} className="space-y-4">
+                        <form onSubmit={onSignup} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Full Name</Label>
                                 <Input
@@ -268,15 +341,6 @@ export default function SignupPage() {
                                     }
                                 />
                             </div>
-
-                            {/* <Button
-                                className="w-full bg-muted"
-                                variant={"outline"}
-                                onClick={handleGoogleSignup}
-                            >
-                                <FcGoogle />
-                                Continue with Google
-                            </Button> */}
                         </form>
                     </CardContent>
                     <CardFooter>
