@@ -92,6 +92,7 @@ export default function SignupPage() {
             });
             if (res.status === 200) {
                 setIsOtpDialogOpen(false);
+                setEnteredOTP("");
                 handleSignup();
             }
         } catch {
