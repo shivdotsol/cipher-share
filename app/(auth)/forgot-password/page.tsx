@@ -152,7 +152,7 @@ export default function ForgotPasswordPage() {
                     },
                 }}
             />
-            <header className="border-b bg-white">
+            <header className="border-b bg-white dark:bg-background">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
                     <Link href="/" className="flex items-center gap-2">
                         <Shield className="h-6 w-6 text-primary" />
@@ -373,7 +373,7 @@ export default function ForgotPasswordPage() {
                     </CardFooter>
                 </Card>
             </main>
-            <footer className="border-t bg-white">
+            <footer className="border-t bg-white dark:bg-background">
                 <div className="container mx-auto flex flex-col gap-2 py-6 px-4 md:px-6 md:flex-row md:items-center md:justify-between">
                     <div className="flex items-center gap-2">
                         <Shield className="h-5 w-5 text-primary" />

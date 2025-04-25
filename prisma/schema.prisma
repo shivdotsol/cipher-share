@@ -23,7 +23,7 @@ model User {
   email         String   @unique
   authType      AuthType
   password      String?
-  publicKey     String? // will not be generated on signup
+  publicKey     String? // will be generated once the user visits /transfer
   picture       String?
   sharedFiles   File[]   @relation("sender")
   receivedFiles File[]   @relation("receiver")
@@ -33,7 +33,8 @@ model User {
 model File {
   id            String    @unique @default(uuid())
   name          String
-  url           String
+  url           String // AWS S3 url
+  size          String
   sender        User      @relation("sender", fields: [senderId], references: [id])
   receiver      User      @relation("receiver", fields: [receiverId], references: [id])
   senderId      String

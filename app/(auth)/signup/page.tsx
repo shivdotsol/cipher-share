@@ -24,11 +24,8 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { signIn } from "next-auth/react";
-import { PrismaClient } from "@prisma/client";
 import { PulseLoader } from "react-spinners";
 import axios, { AxiosError, isAxiosError } from "axios";
 import { useTheme } from "next-themes";
@@ -36,9 +33,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 import { jwtDecode, JwtPayload } from "jwt-decode";
-import { setEnvironmentData } from "worker_threads";
-
-const prisma = new PrismaClient();
 
 export default function SignupPage() {
     const router = useRouter();

@@ -1,14 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import {
-    Shield,
-    Lock,
-    Share2,
-    Upload,
-    CheckCircle,
-    User,
-    Moon,
-} from "lucide-react";
+import { Shield, Lock, Share2, Upload, CheckCircle, User } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -30,8 +22,10 @@ export default async function LandingPage() {
             <header className="border-b">
                 <div className="container flex h-16 items-center justify-between m-auto px-4 md:px-6">
                     <div className="flex items-center gap-2">
-                        <Shield className="h-7 w-7 text-primary" />
-                        <span className="text-2xl font-bold">CipherShare</span>
+                        <Shield className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+                        <span className="text-lg md:text-2xl font-bold">
+                            CipherShare
+                        </span>
                     </div>
                     <nav className="hidden md:flex gap-6">
                         <Link

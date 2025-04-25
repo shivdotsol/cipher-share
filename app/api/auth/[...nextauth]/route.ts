@@ -81,6 +81,20 @@ const handler = NextAuth({
             }
             return true;
         },
+        async session({ session, token, user }) {
+            // 🔥 Pull fresh data from DB here if needed
+            const dbUser = await prisma.user.findUnique({
+                where: { email: token.email as string },
+            });
+
+            if (dbUser && session.user) {
+                session.user.name = dbUser.name;
+                session.user.email = dbUser.email;
+                session.user.image = dbUser.picture;
+            }
+
+            return session;
+        },
     },
 
     pages: {
