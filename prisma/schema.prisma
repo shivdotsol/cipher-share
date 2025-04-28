@@ -23,7 +23,6 @@ model User {
   email         String   @unique
   authType      AuthType
   password      String?
-  publicKey     String? // will be generated once the user visits /transfer
   picture       String?
   sharedFiles   File[]   @relation("sender")
   receivedFiles File[]   @relation("receiver")

@@ -325,7 +325,7 @@ function Profile() {
                                                                 {activity.name}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <div className="flex items-center gap-2">
+                                                                <div className="flex font-bold items-center gap-2">
                                                                     {getActivityIcon(
                                                                         activity.type
                                                                     )}

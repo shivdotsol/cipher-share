@@ -82,7 +82,6 @@ const handler = NextAuth({
             return true;
         },
         async session({ session, token, user }) {
-            // 🔥 Pull fresh data from DB here if needed
             const dbUser = await prisma.user.findUnique({
                 where: { email: token.email as string },
             });
