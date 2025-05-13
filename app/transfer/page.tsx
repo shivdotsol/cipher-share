@@ -11,6 +11,9 @@ import {
     ArrowLeft,
     FileText,
     Lock,
+    AlertCircle,
+    LoaderCircle,
+    LucideLoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +27,10 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import {
+    encryptPrivateKeyWithPassphrase,
     encryptWithAES,
     encryptWithRSA,
     generateAesKey,
@@ -35,18 +39,39 @@ import {
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { fromByteArray, toByteArray } from "base64-js";
+import { SessionProvider, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { TailSpin } from "react-loader-spinner";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { PulseLoader } from "react-spinners";
+import { useTheme } from "next-themes";
+import axios, { AxiosError, isAxiosError } from "axios";
 
-export default function TransferPage() {
+function TransferPage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
     const [file, setFile] = useState<File | null>(null);
     const [error, setError] = useState("");
-    const [receiverEmail, setReceiverEmail] = useState("");
+    const [passphrase, setPassphrase] = useState("");
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [senderEmail, setSenderEmail] = useState(session?.user?.email);
+    const [recipientEmail, setRecipientEmail] = useState("");
     const [uploading, setUploading] = useState(false);
+    const [uploadingMessage, setUploadingMessage] = useState(
+        "Encrypting the file..."
+    );
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadComplete, setUploadComplete] = useState(false);
-    const [fileLink, setFileLink] = useState("");
-    const [decryptionKey, setDecryptionKey] = useState("");
-    const [linkCopied, setLinkCopied] = useState(false);
-    const [keyCopied, setKeyCopied] = useState(false);
+    const { resolvedTheme } = useTheme();
+    const loaderColor = resolvedTheme === "light" ? "#ffffff" : "#000000";
 
     const [downloadLink, setDownloadLink] = useState("");
     const [downloadKey, setDownloadKey] = useState("");
@@ -57,6 +82,7 @@ export default function TransferPage() {
         name: string;
         url: string;
     } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (error.length > 0) {
@@ -66,7 +92,86 @@ export default function TransferPage() {
         }
     }, [error]);
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    useEffect(() => {
+        if (status !== "authenticated") return;
+        const handleDialogState = async () => {
+            const keyExists = await checkForPrivateKeyInDb(
+                session.user!.email!
+            );
+            setIsDialogOpen(!keyExists);
+        };
+        handleDialogState();
+    }, [status]);
+
+    async function checkForPrivateKeyInDb(email: string) {
+        try {
+            const res = await axios.post("/api/keys", {
+                email,
+            });
+
+            if (res.status === 200) {
+                return true;
+            }
+        } catch {
+            return false;
+        }
+        return false;
+    }
+
+    // prompt the user for a passphrase
+    // generate key pairs
+    // encrypt the private key using the passphrase
+    // store the encrypted private key in local storage
+    // send the publicKey to the db
+
+    async function handleKeyPairGeneration() {
+        if (passphrase.length < 10) {
+            setError("Passphrase must 10 characters or more");
+            return;
+        }
+        setIsSubmitting(true);
+
+        const keyPair = await generateKeyPair();
+        const publicKey = await window.crypto.subtle.exportKey(
+            "spki",
+            keyPair.publicKey
+        );
+
+        const base64PublicKey = fromByteArray(new Uint8Array(publicKey));
+        const encryptedPrivateKey = await encryptPrivateKeyWithPassphrase(
+            keyPair.privateKey,
+            passphrase
+        );
+
+        try {
+            const res = await axios.put("/api/keys", {
+                email: senderEmail,
+                publicKey: base64PublicKey,
+                privateKey: JSON.stringify(encryptedPrivateKey),
+            });
+
+            setIsDialogOpen(false);
+        } catch (e) {
+            setError("Error reaching the database, try again.");
+        }
+
+        setIsSubmitting(false);
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    // protecting the route
+
+    useEffect(() => {
+        if (status === "unauthenticated") {
+            router.push("/");
+        } else if (status === "authenticated") {
+            setSenderEmail(session.user?.email);
+        }
+    }, [status]);
+
+    if (status === "unauthenticated") return null;
+    if (status === "loading") return <h1>Loading...</h1>;
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -74,71 +179,138 @@ export default function TransferPage() {
         }
     };
 
+    // to check if the recipient even has an account or have they generated their keys yet
+    const validateRecipientEmail = async (email: string) => {
+        try {
+            const res = await axios.post("/api/keys", {
+                email,
+            });
+
+            if (res.status === 200) {
+                return true;
+            }
+        } catch (e) {
+            if (isAxiosError(e)) {
+                const err = e as AxiosError;
+                if (err.status === 401) {
+                    setError("User with that email doesn't exist.");
+                } else if (err.status === 404) {
+                    setError("Recipient hasn't generated their keys yet.");
+                } else {
+                    setError("Internal Server Error");
+                }
+            }
+        }
+        return false;
+    };
+
     const handleUpload = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!file) return;
+        const fileSizeLimit = 1000 * 1024 * 1024; //  1000 MB
+        if (file.size > fileSizeLimit) {
+            setError("File size excedes 100 MB, please choose a smaller file.");
+            return;
+        }
+        const recipientEmailValid =
+            await validateRecipientEmail(recipientEmail);
+        if (!recipientEmailValid) return;
+        if (senderEmail === recipientEmail) {
+            setError("You can't set yourself as the recipient.");
+            return;
+        }
 
         setUploading(true);
-        setUploadProgress(0);
+        setUploadProgress(10);
+
+        // first fetch the recipient's public key & convert into CryptoKey format
+
+        let publicKey: CryptoKey;
 
         try {
-            await handleEncryptionAndUpload();
-
-            // add the s3 url as file link
-
-            setFileLink(`https://ciphershare.com/f/`);
-            // setUploadComplete(true);
-        } catch (error) {
-            console.error("Upload failed:", error);
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const handleDownload = async () => {
-        if (!downloadLink || !downloadKey) return;
-
-        setDownloading(true);
-        setDownloadProgress(0);
-
-        try {
-            // Simulate download and decryption process
-            await simulateDownloadAndDecryption();
-
-            // Create a fake downloaded file
-            const fileName = "downloaded-file.pdf";
-            setDownloadedFile({
-                name: fileName,
-                url: "#", // In a real app, this would be a blob URL
+            const res = await axios.post("/api/keys", {
+                email: recipientEmail,
             });
-            setDownloadComplete(true);
+            const base64PublicKey = res.data.publicKey;
+
+            const keyBuffer = toByteArray(base64PublicKey);
+
+            publicKey = await crypto.subtle.importKey(
+                "spki",
+                keyBuffer,
+                { name: "RSA-OAEP", hash: "SHA-256" },
+                false,
+                ["encrypt"]
+            );
+        } catch {
+            setError("Error while processing recipient's public key.");
+            setUploading(false);
+            return;
+        }
+
+        setUploadProgress(40);
+
+        // now encrypt and upload to s3
+        try {
+            await encryptAndUpload(publicKey);
+            setUploadComplete(true);
         } catch (error) {
-            console.error("Download failed:", error);
-        } finally {
-            setDownloading(false);
+            setError("Upload failed");
+            resetUpload();
         }
+        setUploading(false);
     };
 
-    const copyToClipboard = (text: string, type: "link" | "key") => {
-        navigator.clipboard.writeText(text);
-        if (type === "link") {
-            setLinkCopied(true);
-            setTimeout(() => setLinkCopied(false), 2000);
-        } else {
-            setKeyCopied(true);
-            setTimeout(() => setKeyCopied(false), 2000);
+    const encryptAndUpload = async (publicKey: CryptoKey) => {
+        if (!file) return;
+        let s3Payload: {
+            encryptedFile: { file: string; iv: string };
+            encryptedAesKey: string;
+        };
+
+        // encrypt
+        try {
+            const fileArrayBuffer = await file.arrayBuffer();
+            const aesKey = await generateAesKey();
+            const encryptedFile = await encryptWithAES(file, aesKey); // encryptedFile
+            const encryptedAesKey = await encryptWithRSA(aesKey, publicKey); // encrypted aes key
+
+            s3Payload = { encryptedFile, encryptedAesKey };
+
+            if (encryptedFile.file) {
+                setError("File encrypted");
+                setUploadProgress(65);
+            }
+        } catch {
+            setError("Error while encrypting the file.");
+            throw new Error("Error while encrypting");
         }
+
+        // upload
+        try {
+            // get the preSignedUrl and Key
+            const urlRes = await axios.get("/api/upload");
+            setUploadProgress(85);
+            const { url, key } = urlRes.data;
+            // upload the file data
+            setUploadingMessage("Uploading the file...");
+            const res = await axios.put(url, s3Payload, {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            setError("File uploaded");
+            setUploadProgress(100);
+            // update the files table in DB
+            try {
+            } catch {}
+        } catch {}
     };
 
-    const resetUpload = () => {
-        setFile(null);
-        setUploadComplete(false);
-        setFileLink("");
-        setDecryptionKey("");
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-    };
+    const handleDownload = async () => {};
+
+    const resetUpload = () => {};
 
     const resetDownload = () => {
         setDownloadComplete(false);
@@ -147,71 +319,60 @@ export default function TransferPage() {
         setDownloadKey("");
     };
 
-    const handleEncryptionAndUpload = async () => {
-        if (!file) {
-            setError("No file selected.");
-            return;
-        }
-
-        try {
-            const { publicKey, privateKey } = await generateKeyPair();
-            const fileArrayBuffer = await file.arrayBuffer();
-            const aesKey = await generateAesKey();
-            const encryptedFile = await encryptWithAES(fileArrayBuffer, aesKey);
-            const encryptedAesKey = await encryptWithRSA(aesKey, publicKey);
-            const exportedPrivateKey = await window.crypto.subtle.exportKey(
-                "pkcs8",
-                privateKey
-            );
-            const base64PrivateKey = fromByteArray(
-                new Uint8Array(exportedPrivateKey)
-            ); // this will be displayed to the user
-
-            setDecryptionKey(base64PrivateKey);
-
-            if (encryptedFile) {
-                setError("file encrypted");
-                setUploadProgress(40);
-            }
-        } catch {
-            setError("Error while encrypting the file.");
-        }
-    };
-
-    const simulateDownloadAndDecryption = async () => {
-        // Simulate download and decryption with progress
-        const totalSteps = 100;
-        for (let i = 0; i <= totalSteps; i++) {
-            setDownloadProgress(i);
-            await new Promise((resolve) => setTimeout(resolve, 30));
-        }
-    };
-
-    const generateRandomString = (length: number) => {
-        const chars =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        let result = "";
-        for (let i = 0; i < length; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-    };
-
     return (
         <div className="flex flex-col min-h-screen">
             <Toaster
                 position="top-center"
                 toastOptions={{
                     classNames: {
-                        title: "md:text-lg",
+                        title: "md:text-base",
                     },
                 }}
             />
+            <Dialog open={isDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Set a passphrase</DialogTitle>
+                        <DialogDescription>
+                            This will be used to encrypt and decrypt your
+                            private key. Remember this or take a screenshot.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Input
+                        value={passphrase}
+                        onChange={(e) => setPassphrase(e.target.value)}
+                        placeholder="Set a passphrase (minimum 10 characters)"
+                    />
+                    <Alert variant={"destructive"} className="bg-red-50">
+                        <AlertCircle className="w-4 h-4" />
+                        <AlertTitle>Warning</AlertTitle>
+                        <AlertDescription>
+                            Do not lose this passphrase otherwise you won't be
+                            able to decrypt received files.
+                        </AlertDescription>
+                    </Alert>
+                    <DialogFooter>
+                        <Button
+                            onClick={handleKeyPairGeneration}
+                            disabled={isSubmitting}
+                            className="w-20"
+                        >
+                            {isSubmitting ? (
+                                <PulseLoader size={8} color={loaderColor} />
+                            ) : (
+                                "Submit"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
             <header className="border-b">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
                     <Link href="/" className="flex items-center gap-2">
-                        <Shield className="h-6 w-6 text-primary" />
-                        <span className="text-xl font-bold">CipherShare</span>
+                        <Shield className="h-6 w-6 md:h-7 md:w-7 text-primary" />
+                        <span className="text-xl md:text-2xl font-bold">
+                            CipherShare
+                        </span>
                     </Link>
                 </div>
             </header>
@@ -293,11 +454,18 @@ export default function TransferPage() {
                                             <div className="space-y-2">
                                                 <div className="flex justify-between text-sm">
                                                     <span>
-                                                        Encrypting and
-                                                        uploading...
+                                                        {uploadingMessage}
                                                     </span>
                                                     <span>
-                                                        {uploadProgress}%
+                                                        {uploadingMessage ===
+                                                            "Uploading the file..." && (
+                                                            <TailSpin
+                                                                color="#000000"
+                                                                height={20}
+                                                                width={20}
+                                                                strokeWidth={3}
+                                                            />
+                                                        )}
                                                     </span>
                                                 </div>
                                                 <Progress
@@ -312,13 +480,15 @@ export default function TransferPage() {
                                         <div className="space-y-4 mb-5">
                                             <div className="space-y-2">
                                                 <Label htmlFor="email">
-                                                    Enter the receiver's email
+                                                    Enter the recipient's email
                                                 </Label>
                                                 <Input
                                                     id="email"
                                                     type="email"
+                                                    placeholder="recipient@example.com"
+                                                    value={recipientEmail}
                                                     onChange={(e) =>
-                                                        setReceiverEmail(
+                                                        setRecipientEmail(
                                                             e.target.value
                                                         )
                                                     }
@@ -345,86 +515,15 @@ export default function TransferPage() {
                                     <CardTitle>
                                         File Uploaded Successfully
                                     </CardTitle>
-                                    <CardDescription>
-                                        Share the link and decryption key with
-                                        your recipient.
+                                    <CardDescription className="mt-1">
+                                        The uploaded file will be{" "}
+                                        <strong>deleted after 24 hours</strong>{" "}
+                                        for privacy reasons, make sure the
+                                        recipient manages to download the file
+                                        using their CipherShare account, before
+                                        it expires.
                                     </CardDescription>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label htmlFor="file-link">
-                                                File Link
-                                            </Label>
-                                            <div className="flex">
-                                                <Input
-                                                    id="file-link"
-                                                    value={fileLink}
-                                                    readOnly
-                                                    className="rounded-r-none"
-                                                />
-                                                <Button
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="rounded-l-none"
-                                                    onClick={() =>
-                                                        copyToClipboard(
-                                                            fileLink,
-                                                            "link"
-                                                        )
-                                                    }
-                                                >
-                                                    {linkCopied ? (
-                                                        <Check className="h-4 w-4" />
-                                                    ) : (
-                                                        <Copy className="h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label htmlFor="decryption-key">
-                                                Decryption Key
-                                            </Label>
-                                            <div className="flex">
-                                                <Input
-                                                    id="decryption-key"
-                                                    value={decryptionKey}
-                                                    readOnly
-                                                    className="rounded-r-none font-mono text-sm"
-                                                />
-                                                <Button
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="rounded-l-none"
-                                                    onClick={() =>
-                                                        copyToClipboard(
-                                                            decryptionKey,
-                                                            "key"
-                                                        )
-                                                    }
-                                                >
-                                                    {keyCopied ? (
-                                                        <Check className="h-4 w-4" />
-                                                    ) : (
-                                                        <Copy className="h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        <Alert>
-                                            <Lock className="h-4 w-4" />
-                                            <AlertDescription>
-                                                Important: Share the decryption
-                                                key through a different medium
-                                                than the file link for maximum
-                                                security.
-                                            </AlertDescription>
-                                        </Alert>
-                                    </div>
-                                </CardContent>
                                 <CardFooter>
                                     <Button
                                         onClick={resetUpload}
@@ -582,5 +681,13 @@ export default function TransferPage() {
                 </div>
             </footer>
         </div>
+    );
+}
+
+export default function Page() {
+    return (
+        <SessionProvider>
+            <TransferPage />
+        </SessionProvider>
     );
 }

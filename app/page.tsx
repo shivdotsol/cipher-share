@@ -14,11 +14,22 @@ import { Button } from "@/components/ui/button";
 import { getServerSession } from "next-auth";
 import LogoutButton from "@/components/logoutButton";
 import ThemeToggle from "@/components/themeToggle";
+import { Toaster } from "@/components/ui/sonner";
+import ShareFileButton from "@/components/ShareFileButton";
 
 export default async function LandingPage() {
     const serverSession = await getServerSession();
+
     return (
         <div className="flex flex-col min-h-screen">
+            <Toaster
+                position="top-center"
+                toastOptions={{
+                    classNames: {
+                        title: "md:text-lg",
+                    },
+                }}
+            />
             <header className="border-b">
                 <div className="container flex h-16 items-center justify-between m-auto px-4 md:px-6">
                     <div className="flex items-center gap-2">
@@ -128,16 +139,13 @@ export default async function LandingPage() {
                                 </h1>
                                 <p className="max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                                     {
-                                        "Your files stay private—always. We encrypt with the recipient's public key, and only they can decrypt it. No stored private keys, no third-party access. Fast, reliable, and built for true privacy. Share with confidence, knowing only the right eyes see your data."
+                                        "Your files stay private always.  Fast, reliable, and built for true privacy. Share with confidence, knowing only the right eyes see your data."
                                     }
                                 </p>
                                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                                    <Link href="/transfer">
-                                        <Button size="lg" className="gap-2">
-                                            <Upload className="h-4 w-4" />
-                                            Share a File
-                                        </Button>
-                                    </Link>
+                                    <ShareFileButton
+                                        serverSession={serverSession}
+                                    />
                                     <Link href="#how-it-works">
                                         <Button
                                             size="lg"
@@ -189,8 +197,8 @@ export default async function LandingPage() {
                                 </h3>
                                 <p className="text-muted-foreground">
                                     Files are encrypted on your device before
-                                    upload. Only recipients with the decryption
-                                    key can access them.
+                                    upload. Only the intended recipient can
+                                    decrypt them.
                                 </p>
                             </div>
                             <div className="flex flex-col items-center space-y-4 text-center">
@@ -201,8 +209,9 @@ export default async function LandingPage() {
                                     Simple Sharing
                                 </h3>
                                 <p className="text-muted-foreground">
-                                    Share encrypted files with anyone using a
-                                    secure link and a separate decryption key.
+                                    Share encrypted files with anyone with
+                                    utmost simplicity, just select the file and
+                                    we take care of the rest.
                                 </p>
                             </div>
                             <div className="flex flex-col items-center space-y-4 text-center">
@@ -213,7 +222,7 @@ export default async function LandingPage() {
                                     Seamless Registration
                                 </h3>
                                 <p className="text-muted-foreground">
-                                    Start sharing files immediately by creating
+                                    Start sharing files right away by creating
                                     an account with google or via email.
                                 </p>
                             </div>
@@ -245,30 +254,30 @@ export default async function LandingPage() {
                                 <h3 className="text-xl font-bold">Upload</h3>
                                 <p className="text-muted-foreground">
                                     Select your file and it will be encrypted in
-                                    your browser before being uploaded to our
-                                    secure servers.
+                                    your browser using the recipient's public
+                                    key before being uploaded.
                                 </p>
                             </div>
                             <div className="flex flex-col items-center space-y-4 text-center">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
                                     <span className="text-xl font-bold">2</span>
                                 </div>
-                                <h3 className="text-xl font-bold">Share</h3>
+                                <h3 className="text-xl font-bold">Download</h3>
                                 <p className="text-muted-foreground">
-                                    Receive a secure download link and a
-                                    separate decryption key to share with your
-                                    recipient.
+                                    The recipient will be able to download the
+                                    encrypted file and decrypt it using their
+                                    private key in the browser itself
                                 </p>
                             </div>
                             <div className="flex flex-col items-center space-y-4 text-center">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
                                     <span className="text-xl font-bold">3</span>
                                 </div>
-                                <h3 className="text-xl font-bold">Download</h3>
+                                <h3 className="text-xl font-bold">Delete</h3>
                                 <p className="text-muted-foreground">
-                                    Recipients use the link to download the
-                                    encrypted file and the key to decrypt it on
-                                    their device.
+                                    The encrypted file will get deleted from our
+                                    servers after a certain time chosen by the
+                                    sender.
                                 </p>
                             </div>
                         </div>
@@ -286,9 +295,10 @@ export default async function LandingPage() {
                                     Security You Can Trust
                                 </h2>
                                 <p className="text-muted-foreground md:text-xl/relaxed">
-                                    CipherShare uses AES-256 encryption, the
-                                    same standard used by governments and
-                                    financial institutions worldwide.
+                                    CipherShare uses AES-GCM to encrypt your
+                                    files and secures the encryption key with
+                                    the recipient's public key—ensuring
+                                    end-to-end privacy as well as performance.
                                 </p>
                                 <ul className="space-y-2">
                                     <li className="flex items-center gap-2">
@@ -302,23 +312,24 @@ export default async function LandingPage() {
                                     <li className="flex items-center gap-2">
                                         <CheckCircle className="h-5 w-5 text-primary" />
                                         <span>
-                                            Files are stored on AWS S3 with
-                                            additional server-side encryption
+                                            Your private key is encrypted using
+                                            a passphrase ensuring that no one
+                                            else can access it.
                                         </span>
                                     </li>
                                     <li className="flex items-center gap-2">
                                         <CheckCircle className="h-5 w-5 text-primary" />
                                         <span>
-                                            Encryption keys are never stored on
-                                            our servers
+                                            Encrypted Files are stored on AWS S3
+                                            with the encrypted AES key.
                                         </span>
                                     </li>
                                     <li className="flex items-center gap-2">
                                         <CheckCircle className="h-5 w-5 text-primary" />
                                         <span>
-                                            Optional file expiration ensures
-                                            your data doesn't remain stored
-                                            indefinitely
+                                            The file are deleted after a certain
+                                            time ensuring your data doesn't
+                                            remain stored indefinitely
                                         </span>
                                     </li>
                                 </ul>

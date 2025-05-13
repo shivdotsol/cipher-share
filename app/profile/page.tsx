@@ -91,7 +91,7 @@ function Profile() {
             id: "file-uuid-1",
             name: "resume.pdf",
             url: "https://s3.aws.com/...",
-            size: "344343434",
+            size: "19999",
             senderId: "user-uuid",
             receiverId: "other-user-uuid",
             currentStatus: "ACTIVE",
@@ -190,7 +190,7 @@ function Profile() {
         e.preventDefault();
         setIsSubmiting(true);
         try {
-            const res = await axios.post("/api/update", {
+            const res = await axios.post("/api/profile-update", {
                 email,
                 name,
             });

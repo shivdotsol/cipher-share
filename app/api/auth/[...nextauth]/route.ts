@@ -14,7 +14,7 @@ async function findExistingUser(email: string) {
     return existingUser;
 }
 
-const handler = NextAuth({
+export const authOptions = {
     providers: [
         Credentials({
             name: "credentials",
@@ -26,7 +26,7 @@ const handler = NextAuth({
             },
             async authorize(credentials, req) {
                 // for when user registers using google for the first time, to store user into session, this part
-                // will only be called after google OAuth succeeds, so no integrity issues hopefully
+                // will only be called after google OAuth succeeds, so no integrity issues
                 if (credentials?.authType == "GOOGLE") {
                     const dbUser = await prisma.user.findUnique({
                         where: {
@@ -70,6 +70,7 @@ const handler = NextAuth({
     ],
 
     callbacks: {
+        //@ts-ignore
         async signIn({ user, account }) {
             if (account?.provider == "google") {
                 const existingUser = await findExistingUser(user.email || "");
@@ -81,6 +82,7 @@ const handler = NextAuth({
             }
             return true;
         },
+        //@ts-ignore
         async session({ session, token, user }) {
             const dbUser = await prisma.user.findUnique({
                 where: { email: token.email as string },
@@ -89,7 +91,6 @@ const handler = NextAuth({
             if (dbUser && session.user) {
                 session.user.name = dbUser.name;
                 session.user.email = dbUser.email;
-                session.user.image = dbUser.picture;
             }
 
             return session;
@@ -99,6 +100,8 @@ const handler = NextAuth({
     pages: {
         signIn: "/login",
     },
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

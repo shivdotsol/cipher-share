@@ -22,6 +22,8 @@ model User {
   name          String
   email         String   @unique
   authType      AuthType
+  publicKey     String? // optional because not generated on signUp, but once user visits /transfer page
+  privateKey    String? // optional because not generated on signUp, but once user visits /transfer page
   password      String?
   picture       String?
   sharedFiles   File[]   @relation("sender")

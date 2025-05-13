@@ -17,10 +17,6 @@ interface RequestBody {
 
 export async function POST(req: NextRequest) {
     const body: RequestBody = await req.json();
-    console.log(
-        "// // // // // // // // // // // // // // // // // // // // // // // // // // // // // //"
-    );
-    console.log(body);
 
     if (body.authType === "EMAIL") {
         try {
@@ -44,7 +40,6 @@ export async function POST(req: NextRequest) {
                         name: body.name,
                         email: body.email,
                         password: hashedPassword,
-                        publicKey: body.publicKey,
                         authType: body.authType,
                     },
                 });

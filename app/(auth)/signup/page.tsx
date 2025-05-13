@@ -110,7 +110,6 @@ export default function SignupPage() {
                 email,
                 password,
                 authType: "EMAIL",
-                publicKey: "dkchjblshdcgyevcoyuterfckvclche", // implement keyPair management
             });
             if (res.status == 200) {
                 const signUpResponse = await signIn("credentials", {
@@ -151,7 +150,6 @@ export default function SignupPage() {
                 email: decoded.email,
                 picture: decoded.picture,
                 authType: "GOOGLE",
-                publicKey: "djhlcvlhjkdbchjdbvhdslydskhdvbudyoydsuv",
             });
 
             if (res.status == 200) {
