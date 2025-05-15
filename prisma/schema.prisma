@@ -9,7 +9,7 @@ datasource db {
 
 enum FileState {
   ACTIVE
-  DELETED
+  EXPIRED
 }
 
 enum AuthType {
@@ -32,15 +32,14 @@ model User {
 }
 
 model File {
-  id            String    @unique @default(uuid())
-  name          String
-  url           String // AWS S3 url
-  size          String
-  sender        User      @relation("sender", fields: [senderId], references: [id])
-  receiver      User      @relation("receiver", fields: [receiverId], references: [id])
-  senderId      String
-  receiverId    String
-  currentStatus FileState @default(ACTIVE)
-  createdAt     DateTime  @default(now())
-  expiresAt     DateTime
+  id             String    @unique @default(uuid())
+  name           String
+  key            String // AWS S3 key
+  size           String
+  sender         User      @relation("sender", fields: [senderEmail], references: [email])
+  recipient      User      @relation("receiver", fields: [recipientEmail], references: [email])
+  senderEmail    String
+  recipientEmail String
+  currentStatus  FileState @default(ACTIVE)
+  createdAt      DateTime  @default(now())
 }

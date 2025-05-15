@@ -208,6 +208,7 @@ function TransferPage() {
         e.preventDefault();
         if (!file) return;
         const fileSizeLimit = 1000 * 1024 * 1024; //  1000 MB
+        // Will increase the size limit once I implement chunking
         if (file.size > fileSizeLimit) {
             setError("File size excedes 100 MB, please choose a smaller file.");
             return;
@@ -270,7 +271,6 @@ function TransferPage() {
 
         // encrypt
         try {
-            const fileArrayBuffer = await file.arrayBuffer();
             const aesKey = await generateAesKey();
             const encryptedFile = await encryptWithAES(file, aesKey); // encryptedFile
             const encryptedAesKey = await encryptWithRSA(aesKey, publicKey); // encrypted aes key
@@ -289,7 +289,7 @@ function TransferPage() {
         // upload
         try {
             // get the preSignedUrl and Key
-            const urlRes = await axios.get("/api/upload");
+            const urlRes = await axios.get("/api/file/upload");
             setUploadProgress(85);
             const { url, key } = urlRes.data;
             // upload the file data
@@ -300,17 +300,72 @@ function TransferPage() {
                 },
             });
 
-            setError("File uploaded");
-            setUploadProgress(100);
+            setUploadProgress(90);
             // update the files table in DB
-            try {
-            } catch {}
-        } catch {}
+            let fileData: FileInterface;
+            if (senderEmail) {
+                fileData = {
+                    name: file.name,
+                    size: file.size.toString(),
+                    key,
+                    currentStatus: "ACTIVE",
+                    recipientEmail,
+                    senderEmail,
+                };
+            } else {
+                setError("Session error");
+                return;
+            }
+            await updateFileInDb(fileData);
+            setUploadProgress(100);
+            setError("File uploaded");
+        } catch (e) {
+            // so that it ends up in the handleUpload() function's catch block
+            throw new Error("Upload Failed");
+        }
+    };
+
+    interface FileInterface {
+        name: string;
+        size: string;
+        key: string;
+        currentStatus: "EXPIRED" | "ACTIVE";
+        recipientEmail: string;
+        senderEmail: string;
+    }
+
+    const updateFileInDb = async ({
+        name,
+        size,
+        key,
+        currentStatus,
+        recipientEmail,
+        senderEmail,
+    }: FileInterface) => {
+        try {
+            const res = await axios.put("/api/file", {
+                name,
+                size,
+                key,
+                currentStatus,
+                recipientEmail,
+                senderEmail,
+            });
+        } catch {
+            setError("Error while updating the db.");
+        }
     };
 
     const handleDownload = async () => {};
 
-    const resetUpload = () => {};
+    const resetUpload = () => {
+        setFile(null);
+        setUploadComplete(false);
+        setRecipientEmail("");
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    };
 
     const resetDownload = () => {
         setDownloadComplete(false);

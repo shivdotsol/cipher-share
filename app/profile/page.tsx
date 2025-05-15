@@ -47,7 +47,16 @@ import { PulseLoader } from "react-spinners";
 import { toast } from "sonner";
 import axios from "axios";
 
-const prisma = new PrismaClient();
+interface fileData {
+    id: string;
+    name: string;
+    key: string;
+    size: string;
+    currentStatus: "EXPIRED" | "ACTIVE";
+    senderEmail: string;
+    recipientEmail: string;
+    createdAt: string;
+}
 
 function Profile() {
     const router = useRouter();
@@ -57,10 +66,26 @@ function Profile() {
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
+    const [fileArray, setFileArray] = useState<fileData[]>([]);
     const [isSubmitting, setIsSubmiting] = useState(false);
     const [error, setError] = useState("");
 
     const isEditing = session?.user?.name !== name;
+
+    async function getFilesData(email: string) {
+        if (email.length < 1) {
+            setError("Session error");
+            return;
+        }
+        try {
+            const res = await axios.post("/api/file", { email });
+            setFileArray(res.data.fileList);
+        } catch {
+            setError("Error reaching the database.");
+        }
+    }
+
+    useEffect(() => {});
 
     useEffect(() => {
         if (error.length > 0) {
@@ -78,40 +103,21 @@ function Profile() {
 
     useEffect(() => {
         if (session?.user) {
-            setName(session?.user?.name || "");
-            setEmail(session?.user?.email || "");
+            setName(session.user?.name || "");
+            setEmail(session.user?.email || "");
+            getFilesData(session.user.email || "");
         }
     }, [session]);
 
     if (status === "unauthenticated") return null;
     if (status === "loading") return <h1>Loading...</h1>;
 
-    const recentActivity = [
-        {
-            id: "file-uuid-1",
-            name: "resume.pdf",
-            url: "https://s3.aws.com/...",
-            size: "19999",
-            senderId: "user-uuid",
-            receiverId: "other-user-uuid",
-            currentStatus: "ACTIVE",
-            type: "Sent",
-            createdAt: "2025-04-25T10:00:00.000Z",
-            expiresAt: "2025-05-25T10:00:00.000Z",
-        },
-        {
-            id: "file-uuid-2",
-            name: "local.pdf",
-            url: "https://s3.aws.com/...",
-            size: "34434",
-            senderId: "user-uuid",
-            receiverId: "other-user-uuid",
-            currentStatus: "DELETED",
-            type: "Received",
-            createdAt: "2025-04-24T16:00:00.000Z",
-            expiresAt: "2025-05-25T10:00:00.000Z",
-        },
-    ];
+    const formattedFileArray = fileArray.map((file) => {
+        return {
+            ...file,
+            type: file.senderEmail === email ? "Sent" : "Received",
+        };
+    });
 
     const fileSizeFormatter = (sizeInBytes: string): string => {
         const bytes = BigInt(sizeInBytes);
@@ -293,8 +299,8 @@ function Profile() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4">
-                                    {recentActivity.length > 1 ? (
+                                <div className="space-y-4 max-h-96 overflow-y-scroll">
+                                    {formattedFileArray.length > 0 ? (
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
@@ -316,7 +322,7 @@ function Profile() {
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {recentActivity.map(
+                                                {formattedFileArray.map(
                                                     (activity) => (
                                                         <TableRow
                                                             key={activity.id}
@@ -329,7 +335,7 @@ function Profile() {
                                                                     {getActivityIcon(
                                                                         activity.type
                                                                     )}
-                                                                    <span className="capitalize">
+                                                                    <span>
                                                                         {
                                                                             activity.type
                                                                         }
