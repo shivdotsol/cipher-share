@@ -1,6 +1,5 @@
 "use client";
 
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +20,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { PrismaClient } from "@prisma/client";
 
 import {
     Download,
@@ -46,6 +44,8 @@ import { useEffect, useState } from "react";
 import { PulseLoader } from "react-spinners";
 import { toast } from "sonner";
 import axios from "axios";
+import Loading from "../Loading";
+import { InfinitySpin } from "react-loader-spinner";
 
 interface fileData {
     id: string;
@@ -68,6 +68,7 @@ function Profile() {
     const [email, setEmail] = useState("");
     const [fileArray, setFileArray] = useState<fileData[]>([]);
     const [isSubmitting, setIsSubmiting] = useState(false);
+    const [loadingFilesData, setLoadingFilesData] = useState(false);
     const [error, setError] = useState("");
 
     const isEditing = session?.user?.name !== name;
@@ -78,11 +79,13 @@ function Profile() {
             return;
         }
         try {
+            setLoadingFilesData(true);
             const res = await axios.post("/api/file", { email });
-            setFileArray(res.data.fileList);
+            setFileArray(res.data.fileList.toReversed());
         } catch {
             setError("Error reaching the database.");
         }
+        setLoadingFilesData(false);
     }
 
     useEffect(() => {});
@@ -110,7 +113,7 @@ function Profile() {
     }, [session]);
 
     if (status === "unauthenticated") return null;
-    if (status === "loading") return <h1>Loading...</h1>;
+    if (status === "loading") return <Loading />;
 
     const formattedFileArray = fileArray.map((file) => {
         return {
@@ -164,13 +167,13 @@ function Profile() {
                 </Badge>
             );
         }
-        if (status === "DELETED") {
+        if (status === "EXPIRED") {
             return (
                 <Badge
                     variant="outline"
                     className="font-bold text-sm bg-red-100 text-red-700 border-red-200"
                 >
-                    Deleted
+                    Expired
                 </Badge>
             );
         }
@@ -299,84 +302,94 @@ function Profile() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4 max-h-96 overflow-y-scroll">
-                                    {formattedFileArray.length > 0 ? (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="text-zinc-500 font-extrabold">
-                                                        File
-                                                    </TableHead>
-                                                    <TableHead className="text-zinc-500 font-extrabold">
-                                                        Type
-                                                    </TableHead>
-                                                    <TableHead className="text-zinc-500 font-extrabold">
-                                                        Date
-                                                    </TableHead>
-                                                    <TableHead className="text-zinc-500 font-extrabold">
-                                                        Size
-                                                    </TableHead>
-                                                    <TableHead className="text-zinc-500 font-extrabold">
-                                                        Status
-                                                    </TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {formattedFileArray.map(
-                                                    (activity) => (
-                                                        <TableRow
-                                                            key={activity.id}
-                                                        >
-                                                            <TableCell className="font-bold">
-                                                                {activity.name}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <div className="flex font-bold items-center gap-2">
-                                                                    {getActivityIcon(
-                                                                        activity.type
-                                                                    )}
-                                                                    <span>
-                                                                        {
-                                                                            activity.type
-                                                                        }
-                                                                    </span>
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell className="font-bold">
-                                                                {dateFormatter(
-                                                                    activity.createdAt
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="font-bold">
-                                                                {fileSizeFormatter(
-                                                                    activity.size
-                                                                )}
-                                                            </TableCell>
-                                                            {
+                                {loadingFilesData ? (
+                                    <div className="flex items-center justify-center ">
+                                        <InfinitySpin color={"#475569"} />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 max-h-96 overflow-y-scroll">
+                                        {formattedFileArray.length > 0 ? (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="text-zinc-500 font-extrabold">
+                                                            File
+                                                        </TableHead>
+                                                        <TableHead className="text-zinc-500 font-extrabold">
+                                                            Type
+                                                        </TableHead>
+                                                        <TableHead className="text-zinc-500 font-extrabold">
+                                                            Date
+                                                        </TableHead>
+                                                        <TableHead className="text-zinc-500 font-extrabold">
+                                                            Size
+                                                        </TableHead>
+                                                        <TableHead className="text-zinc-500 font-extrabold">
+                                                            Status
+                                                        </TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {formattedFileArray.map(
+                                                        (activity) => (
+                                                            <TableRow
+                                                                key={
+                                                                    activity.id
+                                                                }
+                                                            >
+                                                                <TableCell className="font-bold">
+                                                                    {
+                                                                        activity.name
+                                                                    }
+                                                                </TableCell>
                                                                 <TableCell>
-                                                                    {getStatusBadge(
-                                                                        activity.currentStatus
+                                                                    <div className="flex font-bold items-center gap-2">
+                                                                        {getActivityIcon(
+                                                                            activity.type
+                                                                        )}
+                                                                        <span>
+                                                                            {
+                                                                                activity.type
+                                                                            }
+                                                                        </span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="font-bold">
+                                                                    {dateFormatter(
+                                                                        activity.createdAt
                                                                     )}
                                                                 </TableCell>
-                                                            }
-                                                        </TableRow>
-                                                    )
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    ) : (
-                                        <div className="text-center py-6">
-                                            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                            <h3 className="text-lg font-medium">
-                                                No activity yet
-                                            </h3>
-                                            <p className="text-sm text-muted-foreground mt-1">
-                                                Your file activity will appear
-                                                here
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
+                                                                <TableCell className="font-bold">
+                                                                    {fileSizeFormatter(
+                                                                        activity.size
+                                                                    )}
+                                                                </TableCell>
+                                                                {
+                                                                    <TableCell>
+                                                                        {getStatusBadge(
+                                                                            activity.currentStatus
+                                                                        )}
+                                                                    </TableCell>
+                                                                }
+                                                            </TableRow>
+                                                        )
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        ) : (
+                                            <div className="text-center py-6">
+                                                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                                                <h3 className="text-lg font-medium">
+                                                    No activity yet
+                                                </h3>
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                    Your file activity will
+                                                    appear here
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                         <Card>

@@ -6,14 +6,9 @@ import {
     Shield,
     Upload,
     Download,
-    Copy,
-    Check,
     ArrowLeft,
     FileText,
-    Lock,
     AlertCircle,
-    LoaderCircle,
-    LucideLoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +48,7 @@ import {
 import { PulseLoader } from "react-spinners";
 import { useTheme } from "next-themes";
 import axios, { AxiosError, isAxiosError } from "axios";
+import Loading from "../Loading";
 
 function TransferPage() {
     const { data: session, status } = useSession();
@@ -171,7 +167,7 @@ function TransferPage() {
     }, [status]);
 
     if (status === "unauthenticated") return null;
-    if (status === "loading") return <h1>Loading...</h1>;
+    if (status === "loading") return <Loading />;
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -398,7 +394,14 @@ function TransferPage() {
                         onChange={(e) => setPassphrase(e.target.value)}
                         placeholder="Set a passphrase (minimum 10 characters)"
                     />
-                    <Alert variant={"destructive"} className="bg-red-50">
+                    <Alert
+                        variant={"destructive"}
+                        className={
+                            resolvedTheme === "light"
+                                ? "bg-red-50"
+                                : "bg-red-950"
+                        }
+                    >
                         <AlertCircle className="w-4 h-4" />
                         <AlertTitle>Warning</AlertTitle>
                         <AlertDescription>
