@@ -88,7 +88,6 @@ function TransferPage() {
     const [downloadedFileName, setDownloadedFileName] = useState("");
     const [downloading, setDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
-    const [downloadComplete, setDownloadComplete] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     interface FileInterface {
@@ -201,8 +200,6 @@ function TransferPage() {
 
         setIsSubmitting(false);
     }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // protecting the route
 
@@ -508,12 +505,21 @@ function TransferPage() {
     };
 
     const handleDownload = async (key: string, name: string) => {
-        setError("Attempting to download.");
+        setError("Downloading encrypted file...");
+        // incase of large files, the axios call will take longer
+        const firstDelayWarning = setTimeout(() => {
+            setError("It may take a while as the file is large.");
+        }, 5000);
+        const secondDelayWarning = setTimeout(() => {
+            setError("Almost there...");
+        }, 15000);
         try {
             const res = await axios.post("/api/file/download/presigned-url", {
                 key,
             });
             const { data: encryptedFileData } = await axios.get(res.data);
+            clearTimeout(firstDelayWarning);
+            clearTimeout(secondDelayWarning);
             setEncryptedFileData(encryptedFileData);
             setDownloadedFileName(name);
             setIsPassphraseInputVisible(true);
@@ -549,7 +555,6 @@ function TransferPage() {
         setIsPassphraseInputVisible(false);
         setIsStatusBarVisible(false);
         setDownloading(false);
-        setDownloadComplete(false);
     };
 
     const fileSizeFormatter = (sizeInBytes: string): string => {
