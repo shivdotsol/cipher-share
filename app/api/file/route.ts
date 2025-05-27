@@ -9,13 +9,13 @@ const prisma = new PrismaClient();
 
 // to return a list of files related with an email
 export async function POST(req: NextRequest) {
-    // const session = await getServerSession(authOptions);
-    // if (!session) {
-    //     return NextResponse.json(
-    //         { message: "Not authorized" },
-    //         { status: 401 }
-    //     );
-    // }
+    const session = await getServerSession(authOptions);
+    if (!session) {
+        return NextResponse.json(
+            { message: "Not authorized" },
+            { status: 401 }
+        );
+    }
 
     const { email } = await req.json();
     if (!email) {

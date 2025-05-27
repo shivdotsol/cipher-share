@@ -15,7 +15,7 @@ const s3Client = new S3Client({
 
 const bucket = "ciphershare";
 
-export async function getPutObjectUrl() {
+export async function putObjectUrl() {
     const key = `uploads/files/file-${Date.now()}.json`;
     const command = new PutObjectCommand({
         Bucket: bucket,
@@ -24,4 +24,13 @@ export async function getPutObjectUrl() {
     });
     const url = await getSignedUrl(s3Client, command);
     return { url, key };
+}
+
+export async function getObjectUrl(key: string) {
+    const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+    });
+    const url = await getSignedUrl(s3Client, command);
+    return url;
 }

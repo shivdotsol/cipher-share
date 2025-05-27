@@ -5,14 +5,10 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// to check if the client has any files available to download
 export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session) {
-        return NextResponse.json(
-            { message: "Not authorized" },
-            { status: 403 }
-        );
+        return NextResponse.json({ mesage: "Not authorized" }, { status: 403 });
     }
 
     const { email } = await req.json();
@@ -23,19 +19,23 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-
     try {
-        const fileList = await prisma.file.findMany({
-            where: {
-                recipientEmail: email,
-            },
-        });
-        console.log(fileList);
-        return NextResponse.json(fileList);
+        const res = await prisma.user.findUnique({ where: { email } });
+        if (res?.privateKey) {
+            return NextResponse.json({ privateKey: res.privateKey });
+        }
     } catch {
         return NextResponse.json(
-            { message: "Error fetching files" },
+            {
+                message: "Database issue",
+            },
             { status: 500 }
         );
     }
+    return NextResponse.json(
+        {
+            message: "Unknown error occurred",
+        },
+        { status: 500 }
+    );
 }

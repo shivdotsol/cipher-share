@@ -16,9 +16,13 @@ function ShareFileButton({ serverSession }: { serverSession: Session | null }) {
         }
     };
     return (
-        <Button size="lg" className="gap-2" onClick={handleShareClick}>
+        <Button
+            size="lg"
+            className="gap-2 cursor-pointer"
+            onClick={handleShareClick}
+        >
             <Upload className="h-4 w-4" />
-            Share a File
+            File Transfer
         </Button>
     );
 }

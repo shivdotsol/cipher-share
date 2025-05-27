@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, type ChangeEvent, useEffect } from "react";
+import React, { useState, useRef, type ChangeEvent, useEffect } from "react";
 import Link from "next/link";
 import {
     Shield,
@@ -25,6 +25,9 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import {
+    decryptPrivateKeyWithPassphrase,
+    decryptWithAes,
+    decryptWithRSA,
     encryptPrivateKeyWithPassphrase,
     encryptWithAES,
     encryptWithRSA,
@@ -36,7 +39,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { fromByteArray, toByteArray } from "base64-js";
 import { SessionProvider, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { TailSpin } from "react-loader-spinner";
+import { InfinitySpin, TailSpin } from "react-loader-spinner";
 import {
     Dialog,
     DialogContent,
@@ -49,6 +52,8 @@ import { PulseLoader } from "react-spinners";
 import { useTheme } from "next-themes";
 import axios, { AxiosError, isAxiosError } from "axios";
 import Loading from "../Loading";
+import FileListItem from "@/components/FileListItem";
+import StatusBar from "@/components/StatusBar";
 
 function TransferPage() {
     const { data: session, status } = useSession();
@@ -56,6 +61,7 @@ function TransferPage() {
     const [file, setFile] = useState<File | null>(null);
     const [error, setError] = useState("");
     const [passphrase, setPassphrase] = useState("");
+    const [confirmPassphrase, setConfirmPassphrase] = useState("");
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [senderEmail, setSenderEmail] = useState(session?.user?.email);
@@ -69,16 +75,55 @@ function TransferPage() {
     const { resolvedTheme } = useTheme();
     const loaderColor = resolvedTheme === "light" ? "#ffffff" : "#000000";
 
-    const [downloadLink, setDownloadLink] = useState("");
-    const [downloadKey, setDownloadKey] = useState("");
+    const [isCheckingFilesToDownload, setIsCheckingFilesToDownload] =
+        useState(false);
+    const [fileList, setFileList] = useState<FileListInterface[]>([]);
+    const [encryptedFileData, setEncryptedFileData] =
+        useState<EncryptedFileData>();
+    const [decryptionPassphrase, setDecryptionPassphrase] = useState("");
+    const [isPassphraseInputVisible, setIsPassphraseInputVisible] =
+        useState(false);
+    const [isStatusBarVisible, setIsStatusBarVisible] = useState(false);
+    const [statusBarText, setStatusBarText] = useState("");
+    const [downloadedFileName, setDownloadedFileName] = useState("");
     const [downloading, setDownloading] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState(0);
     const [downloadComplete, setDownloadComplete] = useState(false);
-    const [downloadedFile, setDownloadedFile] = useState<{
-        name: string;
-        url: string;
-    } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    interface FileInterface {
+        name: string;
+        size: string;
+        key: string;
+        currentStatus: "EXPIRED" | "ACTIVE";
+        recipientEmail: string;
+        senderEmail: string;
+    }
+
+    interface FileListInterface {
+        name: string;
+        size: string;
+        key: string;
+        currentStatus: "EXPIRED" | "ACTIVE";
+        recipientEmail: string;
+        senderEmail: string;
+        id: string;
+        createdAt: Date;
+    }
+
+    interface PrivateKeyObject {
+        privateKey: string;
+        salt: string;
+        iv: string;
+    }
+
+    interface EncryptedFileData {
+        encryptedFile: {
+            file: string;
+            iv: string;
+        };
+        encryptedAesKey: string;
+    }
 
     useEffect(() => {
         if (error.length > 0) {
@@ -116,13 +161,16 @@ function TransferPage() {
 
     // prompt the user for a passphrase
     // generate key pairs
-    // encrypt the private key using the passphrase
+    // encrypt the private key using an AES key generated with the passphrase
     // store the encrypted private key in local storage
     // send the publicKey to the db
 
     async function handleKeyPairGeneration() {
         if (passphrase.length < 10) {
             setError("Passphrase must 10 characters or more");
+            return;
+        } else if (passphrase !== confirmPassphrase) {
+            setError("Passphrases don't match.");
             return;
         }
         setIsSubmitting(true);
@@ -321,15 +369,6 @@ function TransferPage() {
         }
     };
 
-    interface FileInterface {
-        name: string;
-        size: string;
-        key: string;
-        currentStatus: "EXPIRED" | "ACTIVE";
-        recipientEmail: string;
-        senderEmail: string;
-    }
-
     const updateFileInDb = async ({
         name,
         size,
@@ -352,7 +391,137 @@ function TransferPage() {
         }
     };
 
-    const handleDownload = async () => {};
+    // functions for the download part
+
+    const checkDbForFiles = async () => {
+        setIsCheckingFilesToDownload(true);
+        try {
+            const res = await axios.post("/api/file/download", {
+                email: senderEmail,
+            });
+            const activeFiles: FileListInterface[] = res.data.filter(
+                (item: FileListInterface) => item.currentStatus === "ACTIVE"
+            );
+
+            setFileList(activeFiles.reverse());
+        } catch {
+            setError("Error while fetching files.");
+        }
+        setIsCheckingFilesToDownload(false);
+    };
+
+    const fetchPrivateKeyFromDb = async (): Promise<PrivateKeyObject> => {
+        try {
+            const res = await axios.post("/api/keys/private-key", {
+                email: senderEmail,
+            });
+            const privateKeyObject: PrivateKeyObject = JSON.parse(
+                res.data.privateKey
+            );
+            return privateKeyObject;
+        } catch {
+            setError("Error while fetching private key.");
+        }
+        return { privateKey: "", salt: "", iv: "" };
+    };
+
+    const decryptFileData = async (e: React.FormEvent) => {
+        // fetch encrypted private key form db
+        // ask for passphrase and generate an AES key from that
+        // decrypt the private key using this AES key
+        // now decrypt the AES key that was used to encrypt the file
+        // finally decrypt the file using this AES
+        e.preventDefault();
+        setDownloading(true);
+        setIsStatusBarVisible(true);
+        setDownloadProgress(10);
+
+        //////////////////////////////////////////////////////////////
+        setStatusBarText(
+            "Step 1/4 - Fetching private key from the database..."
+        );
+        const { privateKey, salt, iv } = await fetchPrivateKeyFromDb();
+        if (!(privateKey.length > 0)) {
+            return;
+        }
+        setDownloadProgress(30);
+
+        ///////////////////////////////////////////////////////////////
+        setStatusBarText(
+            "Step 2/4 - Decrypting private key with passphrase..."
+        );
+
+        let decryptedPrivateKey: CryptoKey;
+
+        // might throw if the passphrase is incorrect
+        try {
+            decryptedPrivateKey = await decryptPrivateKeyWithPassphrase(
+                privateKey,
+                salt,
+                iv,
+                decryptionPassphrase
+            );
+        } catch (e) {
+            console.log(e);
+            setError("Incorrect passphrase, try again.");
+            resetDownload();
+            return;
+        }
+
+        setDownloadProgress(55);
+
+        ///////////////////////////////////////////////////////////////
+        setStatusBarText(
+            "Step 2/3 - Decrypting the AES key with the private key..."
+        );
+
+        if (!encryptedFileData) {
+            setError("Error while downloading data, try again.");
+            resetDownload();
+            return;
+        }
+        const decryptedAesKey = await decryptWithRSA(
+            encryptedFileData.encryptedAesKey,
+            decryptedPrivateKey
+        );
+
+        setDownloadProgress(75);
+
+        ////////////////////////////////////////////////////////////////
+        setStatusBarText("Step 3/3 - Decrypting file data with AES key...");
+
+        const fileBuffer = await decryptWithAes(
+            encryptedFileData.encryptedFile.file,
+            encryptedFileData.encryptedFile.iv,
+            decryptedAesKey
+        );
+
+        setDownloadProgress(100);
+
+        const finalFile = new File([fileBuffer], downloadedFileName);
+
+        setStatusBarText("Done");
+
+        downloadFile(finalFile);
+
+        resetDownload();
+    };
+
+    const handleDownload = async (key: string, name: string) => {
+        setError("Attempting to download.");
+        try {
+            const res = await axios.post("/api/file/download/presigned-url", {
+                key,
+            });
+            const { data: encryptedFileData } = await axios.get(res.data);
+            setEncryptedFileData(encryptedFileData);
+            setDownloadedFileName(name);
+            setIsPassphraseInputVisible(true);
+            setError("Enter passphrase.");
+        } catch {
+            setError("error while downloading");
+        }
+    };
 
     const resetUpload = () => {
         setFile(null);
@@ -363,11 +532,57 @@ function TransferPage() {
         }
     };
 
+    function downloadFile(file: File) {
+        const url = URL.createObjectURL(file);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        // clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     const resetDownload = () => {
+        setDecryptionPassphrase("");
+        setIsPassphraseInputVisible(false);
+        setIsStatusBarVisible(false);
+        setDownloading(false);
         setDownloadComplete(false);
-        setDownloadedFile(null);
-        setDownloadLink("");
-        setDownloadKey("");
+    };
+
+    const fileSizeFormatter = (sizeInBytes: string): string => {
+        const bytes = BigInt(sizeInBytes);
+
+        const KB = BigInt(1024);
+        const MB = KB * BigInt(1024);
+        const GB = MB * BigInt(1024);
+
+        if (bytes >= GB) {
+            return `${(Number(bytes) / Number(GB)).toFixed(2)} GB`;
+        } else if (bytes >= MB) {
+            return `${(Number(bytes) / Number(MB)).toFixed(1)} MB`;
+        } else if (bytes >= KB) {
+            return `${(Number(bytes) / Number(KB)).toFixed(1)} KB`;
+        } else {
+            return `${bytes} B`;
+        }
+    };
+
+    const dateFormatter = (dateString: string): string => {
+        const date = new Date(dateString);
+
+        const istFormat = date.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            hour12: true,
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+        });
+
+        return istFormat;
     };
 
     return (
@@ -382,17 +597,29 @@ function TransferPage() {
             />
             <Dialog open={isDialogOpen}>
                 <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
+                    <DialogHeader className="mb-2">
                         <DialogTitle>Set a passphrase</DialogTitle>
                         <DialogDescription>
                             This will be used to encrypt and decrypt your
                             private key. Remember this or take a screenshot.
                         </DialogDescription>
                     </DialogHeader>
+                    <Label htmlFor="passphrase">Enter passphrase</Label>
                     <Input
+                        id="passphrase"
                         value={passphrase}
                         onChange={(e) => setPassphrase(e.target.value)}
-                        placeholder="Set a passphrase (minimum 10 characters)"
+                        placeholder="set a passphrase (minimum 10 characters)"
+                    />
+                    <Label htmlFor="confirm-passphrase">
+                        Confirm passphrase
+                    </Label>
+                    <Input
+                        id="confirm-passphrase"
+                        className="mb-2"
+                        value={confirmPassphrase}
+                        onChange={(e) => setConfirmPassphrase(e.target.value)}
+                        placeholder="confirm passphrase"
                     />
                     <Alert
                         variant={"destructive"}
@@ -409,11 +636,27 @@ function TransferPage() {
                             able to decrypt received files.
                         </AlertDescription>
                     </Alert>
+                    <Alert
+                        variant={"destructive"}
+                        className={
+                            resolvedTheme === "light"
+                                ? "bg-red-100"
+                                : "bg-red-900"
+                        }
+                    >
+                        <AlertCircle className="w-4 h-4" />
+                        <AlertTitle>
+                            Take a screenshot or write it somewhere.
+                        </AlertTitle>
+                        <AlertDescription>
+                            Make sure you save it before submitting.
+                        </AlertDescription>
+                    </Alert>
                     <DialogFooter>
                         <Button
                             onClick={handleKeyPairGeneration}
                             disabled={isSubmitting}
-                            className="w-20"
+                            className="w-20 font-bold"
                         >
                             {isSubmitting ? (
                                 <PulseLoader size={8} color={loaderColor} />
@@ -459,6 +702,7 @@ function TransferPage() {
                             Encrypt & Upload
                         </TabsTrigger>
                         <TabsTrigger
+                            onClick={checkDbForFiles}
                             value="download"
                             className="flex items-center gap-2"
                         >
@@ -595,130 +839,123 @@ function TransferPage() {
                     </TabsContent>
 
                     <TabsContent value="download">
-                        {!downloadComplete ? (
+                        {isCheckingFilesToDownload ? (
+                            <div className="flex items-center justify-center ">
+                                <InfinitySpin color={"#475569"} />
+                            </div>
+                        ) : (
                             <Card>
                                 <CardHeader>
                                     <CardTitle>
                                         Download & Decrypt a File
                                     </CardTitle>
                                     <CardDescription>
-                                        Enter the file link and decryption key
-                                        to download and decrypt the file.
+                                        {fileList.length > 0 &&
+                                            "Below are the files that were sent to you within the past 24 hours."}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="space-y-4">
+                                    {fileList.length < 1 && (
+                                        <div className="text-center py-6">
+                                            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                                            <h3 className="text-lg font-medium">
+                                                Nothing to download
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                No files were sent to you in the
+                                                past 24 hours.
+                                            </p>
+                                        </div>
+                                    )}
+                                    <div className="space-y-4 mb-2">
                                         <div className="space-y-2">
-                                            <Label htmlFor="download-link">
-                                                Enter the file link here
-                                            </Label>
-                                            <Input
-                                                id="download-link"
-                                                placeholder="https://s3.aws.com/..."
-                                                value={downloadLink}
-                                                onChange={(e) =>
-                                                    setDownloadLink(
-                                                        e.target.value
-                                                    )
-                                                }
-                                                disabled={downloading}
-                                            />
+                                            {fileList &&
+                                                fileList[0] &&
+                                                fileList.map((f) => (
+                                                    <div
+                                                        key={f.id}
+                                                        className="flex gap-x-2 items-center relative "
+                                                    >
+                                                        <div
+                                                            className="w-full"
+                                                            onClick={() =>
+                                                                handleDownload(
+                                                                    f.key,
+                                                                    f.name
+                                                                )
+                                                            }
+                                                        >
+                                                            <FileListItem
+                                                                name={f.name}
+                                                                senderEmail={
+                                                                    f.senderEmail
+                                                                }
+                                                                size={fileSizeFormatter(
+                                                                    f.size
+                                                                )}
+                                                                date={dateFormatter(
+                                                                    f.createdAt.toString()
+                                                                )}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label htmlFor="download-key">
-                                                Enter the decryption key
-                                            </Label>
-                                            <Input
-                                                id="download-key"
-                                                value={downloadKey}
-                                                onChange={(e) =>
-                                                    setDownloadKey(
-                                                        e.target.value
-                                                    )
-                                                }
-                                                disabled={downloading}
-                                                className="font-mono text-sm"
-                                            />
-                                        </div>
-
-                                        {downloading && (
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between text-sm">
-                                                    <span>
-                                                        Downloading and
-                                                        decrypting...
-                                                    </span>
-                                                    <span>
-                                                        {downloadProgress}%
-                                                    </span>
+                                        {isPassphraseInputVisible && (
+                                            <form onSubmit={decryptFileData}>
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="decryptionPassphrase">
+                                                        Enter the passphrase
+                                                    </Label>
+                                                    <Input
+                                                        id="decryptionPassphrase"
+                                                        value={
+                                                            decryptionPassphrase
+                                                        }
+                                                        placeholder="to decrypt your private key"
+                                                        onChange={(e) =>
+                                                            setDecryptionPassphrase(
+                                                                e.target.value
+                                                            )
+                                                        }
+                                                        disabled={downloading}
+                                                        className="font-mono text-sm"
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={
+                                                            decryptionPassphrase.length <
+                                                                10 ||
+                                                            downloading
+                                                        }
+                                                        className="w-full"
+                                                    >
+                                                        {downloading
+                                                            ? "Processing..."
+                                                            : "Download & Decrypt"}
+                                                    </Button>
                                                 </div>
-                                                <Progress
-                                                    value={downloadProgress}
-                                                />
-                                            </div>
+                                            </form>
+                                        )}
+
+                                        {isStatusBarVisible && (
+                                            <StatusBar
+                                                statusBarText={statusBarText}
+                                                downloadProgress={
+                                                    downloadProgress
+                                                }
+                                            />
                                         )}
                                     </div>
+                                    {!isStatusBarVisible &&
+                                        fileList.length > 0 && (
+                                            <CardDescription>
+                                                Click on the file you would like
+                                                to download.
+                                            </CardDescription>
+                                        )}
                                 </CardContent>
-                                <CardFooter>
-                                    <Button
-                                        onClick={handleDownload}
-                                        disabled={
-                                            !downloadLink ||
-                                            !downloadKey ||
-                                            downloading
-                                        }
-                                        className="w-full"
-                                    >
-                                        {downloading
-                                            ? "Processing..."
-                                            : "Download & Decrypt"}
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        ) : (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>
-                                        File Downloaded Successfully
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Your file has been downloaded and
-                                        decrypted.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-4">
-                                        <Alert>
-                                            <FileText className="h-4 w-4" />
-                                            <AlertDescription>
-                                                {downloadedFile?.name}
-                                            </AlertDescription>
-                                        </Alert>
-
-                                        <div className="flex justify-center">
-                                            <Button asChild>
-                                                <a
-                                                    href={downloadedFile?.url}
-                                                    download={
-                                                        downloadedFile?.name
-                                                    }
-                                                >
-                                                    Save File
-                                                </a>
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                                <CardFooter>
-                                    <Button
-                                        onClick={resetDownload}
-                                        variant="outline"
-                                        className="w-full"
-                                    >
-                                        Download Another File
-                                    </Button>
-                                </CardFooter>
                             </Card>
                         )}
                     </TabsContent>

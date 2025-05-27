@@ -46,6 +46,11 @@ export const authOptions = {
                                 email: credentials?.email,
                             },
                         });
+                        if (!user?.password) {
+                            throw new Error(
+                                "You had signed up using Google, login with Google."
+                            );
+                        }
                         const isPasswordCorrect = await bcrypt.compare(
                             credentials?.password!!,
                             user?.password!!
