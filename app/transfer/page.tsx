@@ -248,7 +248,7 @@ function TransferPage() {
     const handleUpload = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!file) return;
-        const fileSizeLimit = 1000 * 1024 * 1024; //  1000 MB
+        const fileSizeLimit = 100 * 1024 * 1024; //  100 MB
         // Will increase the size limit once I implement chunking
         if (file.size > fileSizeLimit) {
             setError("File size excedes 100 MB, please choose a smaller file.");
