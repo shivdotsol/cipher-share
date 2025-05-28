@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Eye, EyeOff } from "lucide-react";
@@ -17,15 +17,15 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FcGoogle } from "react-icons/fc";
 import { signIn } from "next-auth/react";
 import { PulseLoader } from "react-spinners";
 import { useTheme } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import Loading from "@/app/Loading";
 
-export default function LoginPage() {
+function Page() {
     const router = useRouter();
     const searchparams = useSearchParams();
     const [urlError, setUrlError] = useState(searchparams.get("error"));
@@ -217,5 +217,13 @@ export default function LoginPage() {
                 </div>
             </footer>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <Page />
+        </Suspense>
     );
 }

@@ -1,9 +1,9 @@
 // to update the files table
 
+import { authOptions } from "@/lib/authOptions";
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
-import { authOptions } from "../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 

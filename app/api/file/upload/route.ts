@@ -1,7 +1,7 @@
+import { authOptions } from "@/lib/authOptions";
 import { putObjectUrl } from "@/lib/s3";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { authOptions } from "../../auth/[...nextauth]/route";
 
 // this is so that /lib/s3.ts does not execute on the client, which can cause the .env variables to possibly leak causing security issues.
 

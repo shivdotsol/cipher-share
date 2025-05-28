@@ -15,7 +15,6 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { PulseLoader } from "react-spinners";
@@ -35,6 +34,7 @@ export default function ForgotPasswordPage() {
     const [otpSent, setOtpSent] = useState(false);
     const [isOtpSubmitted, setIsOtpSubmitted] = useState(false);
     const { resolvedTheme } = useTheme();
+    const [passwordResetToken, setPasswordResetToken] = useState("");
     const loaderColor = resolvedTheme === "light" ? "#ffffff" : "#000000";
 
     const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -87,6 +87,7 @@ export default function ForgotPasswordPage() {
                 }
             );
             if (res.status === 200) {
+                setPasswordResetToken(res.data.token);
                 setError("Email verified successfully.");
                 setIsOtpSubmitted(true);
             }
@@ -119,6 +120,7 @@ export default function ForgotPasswordPage() {
             const res = await axios.post("/api/auth/reset-password", {
                 email,
                 password,
+                passwordResetToken,
             });
             if (res.status === 200) {
                 setError(
