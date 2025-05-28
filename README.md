@@ -85,4 +85,8 @@ S3_SECRET_ACCESS_KEY="aws-user-secret"
 npm run dev
 ```
 
+### 4. TODO
+
+- Create a keypair re-generation wizard for when the user forgets their passphrase.
+
 ### 🤝 Contributions are welcome

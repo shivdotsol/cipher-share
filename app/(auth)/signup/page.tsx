@@ -324,7 +324,7 @@ export default function SignupPage() {
                                 or
                             </div>
 
-                            <div className="rounded-lg overflow-clip bg-gray-800">
+                            <div className="w-full flex justify-center items-center rounded-lg overflow-clip dark:bg-gray-800">
                                 <GoogleLogin
                                     onSuccess={(credentialResponse) =>
                                         handleGoogleSignup(credentialResponse)
